@@ -155,112 +155,119 @@ export default function Navbar() {
   ];
 
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200">
-      <div className="w-full px-4 sm:px-8 lg:px-12">
-        <div className="flex justify-between items-center h-16">
-          {/* Logo & Brand */}
-          <div className="flex items-center gap-3">
-            <Link href="/jadwal" className="flex items-center gap-2.5">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-700 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-                <Sparkles className="w-5 h-5 text-amber-300" />
+    <>
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200">
+        <div className="w-full px-4 sm:px-8 lg:px-12">
+          <div className="flex justify-between items-center h-16">
+            {/* Logo & Brand */}
+            <div className="flex items-center gap-3">
+              <Link href="/jadwal" className="flex items-center gap-2.5">
+                <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-700 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+                  <Sparkles className="w-5 h-5 text-amber-300" />
+                </div>
+                <div>
+                  <span className="text-base font-bold bg-gradient-to-r from-blue-900 to-indigo-800 bg-clip-text text-transparent">
+                    SIM Jadwal GA
+                  </span>
+                  <span className="block text-xs text-slate-500 font-medium">Universitas Nahdlatul Ulama</span>
+                </div>
+              </Link>
+              <div className="hidden lg:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 ml-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                {activePeriod ? `${activePeriod.semester} ${activePeriod.tahun_ajaran}` : "Gasal 2026/2027"}
               </div>
-              <div>
-                <span className="text-base font-bold bg-gradient-to-r from-blue-900 to-indigo-800 bg-clip-text text-transparent">
-                  SIM Jadwal GA
-                </span>
-                <span className="block text-xs text-slate-500 font-medium">Universitas Nahdlatul Ulama</span>
-              </div>
-            </Link>
-            <div className="hidden lg:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 ml-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
-              {activePeriod ? `${activePeriod.semester} ${activePeriod.tahun_ajaran}` : "Gasal 2026/2027"}
+            </div>
+
+            {/* Navigation Links */}
+            <nav className="hidden md:flex items-center space-x-1">
+              {navItems.map((item) => {
+                if (item.requiresAdmin && !isAdmin) return null;
+                const Icon = item.icon;
+                const isActive = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+                      isActive
+                        ? "bg-blue-50 text-blue-700 shadow-xs font-bold"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 ${isActive ? "text-blue-600" : "text-slate-400"}`} />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* Action Links & Auth Controls */}
+            <div className="flex items-center gap-3">
+              {isAdmin ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={openProfileModal}
+                    title="Klik untuk Ubah Profil atau Ganti Password"
+                    className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 active:scale-95 border border-blue-200 text-blue-800 text-xs font-bold transition-all group"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-blue-600 group-hover:scale-110 transition-transform" />
+                    <span>{user?.nama_lengkap || "Petugas BAAK"}</span>
+                    <KeyRound className="w-3 h-3 text-blue-500 opacity-60 group-hover:opacity-100 ml-0.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openProfileModal}
+                    title="Kelola Akun & Ganti Password"
+                    className="sm:hidden inline-flex items-center justify-center p-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 transition-all"
+                  >
+                    <KeyRound className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    title="Logout Administrator"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-all"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Keluar</span>
+                  </button>
+                </div>
+              ) : (
+                <Link
+                  href="/login"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl shadow-xs transition-all"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Login Petugas BAAK</span>
+                </Link>
+              )}
+
+              <a
+                href="http://127.0.0.1:8000/docs"
+                target="_blank"
+                rel="noreferrer"
+                title="OpenAPI Swagger"
+                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 border border-slate-200 rounded-xl transition-colors"
+              >
+                <span>Swagger</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
           </div>
-
-          {/* Navigation Links */}
-          <nav className="hidden md:flex items-center space-x-1">
-            {navItems.map((item) => {
-              if (item.requiresAdmin && !isAdmin) return null;
-              const Icon = item.icon;
-              const isActive = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
-                    isActive
-                      ? "bg-blue-50 text-blue-700 shadow-xs font-bold"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                  }`}
-                >
-                  <Icon className={`w-4 h-4 ${isActive ? "text-blue-600" : "text-slate-400"}`} />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-
-          {/* Action Links & Auth Controls */}
-          <div className="flex items-center gap-3">
-            {isAdmin ? (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={openProfileModal}
-                  title="Klik untuk Ubah Profil atau Ganti Password"
-                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 active:scale-95 border border-blue-200 text-blue-800 text-xs font-bold transition-all group"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600 group-hover:scale-110 transition-transform" />
-                  <span>{user?.nama_lengkap || "Petugas BAAK"}</span>
-                  <KeyRound className="w-3 h-3 text-blue-500 opacity-60 group-hover:opacity-100 ml-0.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={openProfileModal}
-                  title="Kelola Akun & Ganti Password"
-                  className="sm:hidden inline-flex items-center justify-center p-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 transition-all"
-                >
-                  <KeyRound className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={handleLogout}
-                  title="Logout Administrator"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-all"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Keluar</span>
-                </button>
-              </div>
-            ) : (
-              <Link
-                href="/login"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl shadow-xs transition-all"
-              >
-                <LogIn className="w-3.5 h-3.5" />
-                <span>Login Petugas BAAK</span>
-              </Link>
-            )}
-
-            <a
-              href="http://127.0.0.1:8000/docs"
-              target="_blank"
-              rel="noreferrer"
-              title="OpenAPI Swagger"
-              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 border border-slate-200 rounded-xl transition-colors"
-            >
-              <span>Swagger</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>
         </div>
-      </div>
+      </header>
 
-      {/* Modal Kelola Akun & Ganti Password */}
+      {/* Modal Kelola Akun & Ganti Password (Rendered outside header to avoid backdrop-blur coordinate containment) */}
       {isProfileModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
+        <div
+          className="fixed inset-0 z-[999] flex items-start justify-center p-4 pt-20 sm:pt-24 pb-12 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsProfileModalOpen(false);
+          }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150 my-auto sm:my-0 flex flex-col max-h-[calc(100vh-7rem)]">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-blue-100 text-blue-700 rounded-xl">
                   <ShieldCheck className="w-5 h-5" />
@@ -282,7 +289,7 @@ export default function Navbar() {
             </div>
 
             {/* Tab Switcher */}
-            <div className="flex border-b border-slate-100 bg-slate-50/40 p-1.5 gap-1.5 mx-6 mt-4 rounded-xl border">
+            <div className="flex border-b border-slate-100 bg-slate-50/40 p-1.5 gap-1.5 mx-6 mt-4 rounded-xl border shrink-0">
               <button
                 type="button"
                 onClick={() => { setProfileTab("password"); setModalFeedback(null); }}
@@ -310,7 +317,7 @@ export default function Navbar() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto">
               {modalFeedback && (
                 <div
                   className={`mb-4 p-3 rounded-xl text-xs font-medium flex items-center gap-2 border ${
@@ -465,6 +472,6 @@ export default function Navbar() {
           </div>
         </div>
       )}
-    </header>
+    </>
   );
 }
