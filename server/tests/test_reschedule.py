@@ -1,10 +1,20 @@
 import pytest
 import uuid
+from fastapi import HTTPException
 from server.app.models import (
     SemesterPeriode, Kelas, Ruangan, Hari, SlotWaktu, Dosen,
     VersiJadwal, Jadwal, PermohonanGantiJadwal, AuditLog
 )
 from server.app.models.enums import StatusVersiJadwal, StatusJadwal
+from server.app.schemas.reschedule import (
+    RescheduleRequestCreate, RescheduleReviewAction
+)
+from server.app.api.v1.endpoints.reschedule import (
+    get_available_reschedule_slots,
+    submit_reschedule_request,
+    get_reschedule_requests,
+    review_reschedule_request
+)
 
 @pytest.fixture
 def published_schedule(db_session):
@@ -38,72 +48,68 @@ def published_schedule(db_session):
     db_session.commit()
     return jadwal
 
-def test_available_slots_calculation(client, published_schedule, db_session):
+def test_available_slots_calculation(published_schedule, db_session):
     dosen = published_schedule.kelas.pengampu_list[0].dosen
-    res = client.get(f"/api/v1/reschedule/available-slots?jadwal_id={published_schedule.id}&dosen_id={dosen.id}")
-    assert res.status_code == 200
-    slots = res.json()
+    slots = get_available_reschedule_slots(
+        jadwal_id=published_schedule.id,
+        dosen_id=dosen.id,
+        db=db_session
+    )
     assert len(slots) > 0
-    # Every slot must have required fields
     first_slot = slots[0]
-    assert "hari_id" in first_slot
-    assert "slot_id" in first_slot
-    assert "ruangan_id" in first_slot
-    assert first_slot["kapasitas"] >= published_schedule.kelas.jumlah_mahasiswa
+    assert first_slot.hari_id is not None
+    assert first_slot.slot_id is not None
+    assert first_slot.ruangan_id is not None
+    assert first_slot.kapasitas >= published_schedule.kelas.jumlah_mahasiswa
 
-def test_submit_reschedule_wrong_nidn_rejected(client, published_schedule):
+def test_submit_reschedule_wrong_nidn_rejected(published_schedule, db_session):
     dosen = published_schedule.kelas.pengampu_list[0].dosen
     ruang = published_schedule.ruangan
 
-    payload = {
-        "jadwal_id": str(published_schedule.id),
-        "dosen_id": str(dosen.id),
-        "nidn_verification": "SALAH_NIDN_9999",
-        "ruangan_tujuan_id": str(ruang.id),
-        "hari_tujuan_id": 2, # Selasa
-        "slot_tujuan_id": str(published_schedule.slot_mulai_id),
-        "alasan": "Ada seminar nasional"
-    }
+    payload = RescheduleRequestCreate(
+        jadwal_id=published_schedule.id,
+        dosen_id=dosen.id,
+        nidn_verification="SALAH_NIDN_9999",
+        ruangan_tujuan_id=ruang.id,
+        hari_tujuan_id=2, # Selasa
+        slot_tujuan_id=published_schedule.slot_mulai_id,
+        alasan="Ada seminar nasional"
+    )
 
-    res = client.post("/api/v1/reschedule/request", json=payload)
-    assert res.status_code == 400
-    assert "tidak sesuai" in res.json()["detail"].lower()
+    with pytest.raises(HTTPException) as exc:
+        submit_reschedule_request(payload=payload, db=db_session)
+    assert exc.value.status_code == 400
+    assert "tidak sesuai" in exc.value.detail.lower()
 
-def test_submit_and_approve_reschedule(client, published_schedule, db_session):
+def test_submit_and_approve_reschedule(published_schedule, db_session):
     dosen = published_schedule.kelas.pengampu_list[0].dosen
     ruang = published_schedule.ruangan
     slot = db_session.query(SlotWaktu).filter(SlotWaktu.nomor == 3).first()
 
-    payload = {
-        "jadwal_id": str(published_schedule.id),
-        "dosen_id": str(dosen.id),
-        "nidn_verification": dosen.nidn, # Correct NIDN
-        "ruangan_tujuan_id": str(ruang.id),
-        "hari_tujuan_id": 2, # Move to Selasa
-        "slot_tujuan_id": str(slot.id),
-        "alasan": "Tugas kedinasan rektorat"
-    }
+    payload = RescheduleRequestCreate(
+        jadwal_id=published_schedule.id,
+        dosen_id=dosen.id,
+        nidn_verification=dosen.nidn, # Correct NIDN
+        ruangan_tujuan_id=ruang.id,
+        hari_tujuan_id=2, # Move to Selasa
+        slot_tujuan_id=slot.id,
+        alasan="Tugas kedinasan rektorat"
+    )
 
     # 1. Submit Request
-    res = client.post("/api/v1/reschedule/request", json=payload)
-    assert res.status_code == 200
-    assert res.json()["status"] == "success"
-    req_id = res.json()["request_id"]
+    res = submit_reschedule_request(payload=payload, db=db_session)
+    assert res["status"] == "success"
+    req_id = uuid.UUID(res["request_id"])
 
     # 2. Verify in requests list
-    res_list = client.get("/api/v1/reschedule/requests?status_filter=PENDING")
-    assert res_list.status_code == 200
-    items = res_list.json()
+    items = get_reschedule_requests(status_filter="PENDING", db=db_session)
     assert len(items) == 1
-    assert items[0]["dosen_nama"] == dosen.nama_lengkap
+    assert items[0].dosen_nama == dosen.nama_lengkap
 
     # 3. BAAK Approves Request
-    res_approve = client.post(
-        f"/api/v1/reschedule/requests/{req_id}/review",
-        json={"status": "APPROVED", "catatan_baak": "Disetujui oleh Kepala BAAK"}
-    )
-    assert res_approve.status_code == 200
-    assert res_approve.json()["status"] == "success"
+    review_action = RescheduleReviewAction(status="APPROVED", catatan_baak="Disetujui oleh Kepala BAAK")
+    res_approve = review_reschedule_request(request_id=req_id, payload=review_action, db=db_session)
+    assert res_approve["status"] == "success"
 
     # 4. Verify Jadwal physically moved
     db_session.refresh(published_schedule)

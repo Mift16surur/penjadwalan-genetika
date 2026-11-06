@@ -85,18 +85,22 @@ OPENAPI_TAGS = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Pastikan tabel ada
-    Base.metadata.create_all(bind=engine)
-    
-    # Auto-seed master data jika database baru
-    db = SessionLocal()
-    try:
-        if not db.query(Hari).first():
-            print("[INFO] Database kosong, menjalankan seed master awal...")
-            seed_master_data(db)
-            print("[INFO] Seed master awal selesai.")
-    finally:
-        db.close()
+    # Startup: Pastikan tabel ada jika bukan testing
+    if not os.environ.get("TESTING"):
+        try:
+            Base.metadata.create_all(bind=engine)
+            
+            # Auto-seed master data jika database baru
+            db = SessionLocal()
+            try:
+                if not db.query(Hari).first():
+                    print("[INFO] Database kosong, menjalankan seed master awal...")
+                    seed_master_data(db)
+                    print("[INFO] Seed master awal selesai.")
+            finally:
+                db.close()
+        except Exception as err:
+            print(f"[WARN] Inisialisasi database database saat startup dilewati: {err}")
     
     yield
 

@@ -291,6 +291,7 @@ def review_reschedule_request(
         jadwal.ruangan_id = req.ruangan_tujuan_id
         jadwal.hari_id = req.hari_tujuan_id
         jadwal.slot_mulai_id = req.slot_tujuan_id
+        jadwal.manual_edit = True
 
         # Catat Audit Log
         db.add(AuditLog(

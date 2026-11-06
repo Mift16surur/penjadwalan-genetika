@@ -1,7 +1,7 @@
 import {
   SemesterPeriode, Ruangan, Dosen, MataKuliah, Kelas, AturanJadwal,
   JobGA, VersiJadwal, ScheduleMatrixResponse, Prodi, Fakultas,
-  HariItem, SlotWaktuItem, KetersediaanDosen
+  HariItem, SlotWaktuItem, KetersediaanDosen, UserAdmin
 } from "./types";
 
 const API_BASE = "/api/v1";
@@ -621,6 +621,87 @@ export async function saveBulkLecturerAvailabilities(payload: {
   if (!res.ok) {
     const err = await res.json();
     throw new Error(err.detail || "Gagal menyimpan ketersediaan waktu dosen.");
+  }
+  return res.json();
+}
+
+// ----------------- MANAJEMEN PENGGUNA & GANTI PASSWORD -----------------
+function getAuthHeaders(): HeadersInit {
+  const token = typeof window !== "undefined" ? localStorage.getItem("unu_ga_token") : null;
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  };
+}
+
+export async function changePassword(oldPassword: string, newPassword: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/auth/change-password`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || "Gagal mengubah password.");
+  }
+  return res.json();
+}
+
+export async function updateProfile(data: { nama_lengkap?: string; email?: string; username?: string }): Promise<any> {
+  const res = await fetch(`${API_BASE}/auth/profile`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || "Gagal memperbarui profil.");
+  }
+  return res.json();
+}
+
+export async function fetchAdminUsers(): Promise<UserAdmin[]> {
+  const res = await fetch(`${API_BASE}/auth/users`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function createAdminUser(data: any): Promise<UserAdmin> {
+  const res = await fetch(`${API_BASE}/auth/users`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || "Gagal menambahkan akun petugas.");
+  }
+  return res.json();
+}
+
+export async function updateAdminUser(userId: string, data: any): Promise<UserAdmin> {
+  const res = await fetch(`${API_BASE}/auth/users/${encodeURIComponent(userId)}`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || "Gagal memperbarui akun petugas.");
+  }
+  return res.json();
+}
+
+export async function deleteAdminUser(userId: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/auth/users/${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || "Gagal menonaktifkan akun petugas.");
   }
   return res.json();
 }

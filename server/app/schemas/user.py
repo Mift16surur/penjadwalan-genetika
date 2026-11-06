@@ -29,3 +29,20 @@ class TokenOut(BaseModel):
     token_type: str = "bearer"
     user: UserOut
 
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+class ProfileUpdateRequest(BaseModel):
+    username: Optional[str] = None
+    email: Optional[str] = None
+    nama_lengkap: Optional[str] = None
+
+class UserAdminUpdate(BaseModel):
+    username: Optional[str] = None
+    email: Optional[str] = None
+    nama_lengkap: Optional[str] = None
+    role: Optional[str] = None
+    aktif: Optional[bool] = None
+    password: Optional[str] = None # Jika ingin mereset password
+

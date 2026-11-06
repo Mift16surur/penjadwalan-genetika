@@ -1,3 +1,13 @@
+export interface UserAdmin {
+  id: string;
+  username: string;
+  nama_lengkap: string;
+  email?: string;
+  role: string;
+  aktif: boolean;
+  created_at: string;
+}
+
 export interface SemesterPeriode {
   id: string;
   kode: string;

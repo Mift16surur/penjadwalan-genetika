@@ -119,7 +119,7 @@ def test_ga_operators_crossover_and_mutation(db_session):
     parent2 = Chromosome(genes=[gene_p2])
 
     # Crossover
-    child1, child2 = crossover(parent1, parent2, ctx, crossover_rate=1.0)
+    child1, child2 = crossover(parent1, parent2)
     assert len(child1.genes) == 1
     assert len(child2.genes) == 1
 

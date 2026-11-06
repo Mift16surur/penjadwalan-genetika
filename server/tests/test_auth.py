@@ -36,14 +36,63 @@ def test_jwt_tampered_token_fails():
     tampered_token = f"{parts[0]}.eyJhZG1pbiI6IHRydWV9.{parts[2]}"
     assert verify_access_token(tampered_token) is None
 
-def test_login_api_endpoint(client):
+def test_login_api_endpoint(db_session):
+    from server.app.api.v1.endpoints.auth import login
+    from server.app.schemas.user import UserLogin
+    from fastapi import HTTPException
+
     # Valid login
-    res = client.post("/api/v1/auth/login", json={"username": "admin", "password": "admin123"})
-    assert res.status_code == 200
-    res_data = res.json()
-    assert "token" in res_data
-    assert res_data["user"]["username"] == "admin"
+    res = login(UserLogin(username="admin", password="admin123"), db=db_session)
+    assert res["user"].username == "admin"
+    assert "access_token" in res
+    assert res["token_type"] == "bearer"
 
     # Invalid password
-    res_fail = client.post("/api/v1/auth/login", json={"username": "admin", "password": "wrongpassword"})
-    assert res_fail.status_code == 401
+    with pytest.raises(HTTPException) as exc_info:
+        login(UserLogin(username="admin", password="wrongpassword"), db=db_session)
+    assert exc_info.value.status_code == 401
+
+def test_change_password_endpoint(db_session):
+    from server.app.api.v1.endpoints.auth import login, change_password
+    from server.app.schemas.user import UserLogin, ChangePasswordRequest
+    from server.app.models.user import User
+    from fastapi import HTTPException
+
+    admin_user = db_session.query(User).filter(User.username == "admin").first()
+    assert admin_user is not None
+
+    # Salah password lama
+    with pytest.raises(HTTPException) as exc:
+        change_password(
+            ChangePasswordRequest(old_password="salah", new_password="passwordBaru123"),
+            db=db_session,
+            current_user=admin_user
+        )
+    assert exc.value.status_code == 400
+
+    # Sukses ganti password
+    res = change_password(
+        ChangePasswordRequest(old_password="admin123", new_password="passwordBaru123"),
+        db=db_session,
+        current_user=admin_user
+    )
+    assert "message" in res
+
+    # Verifikasi bisa login dengan password baru
+    login_res = login(UserLogin(username="admin", password="passwordBaru123"), db=db_session)
+    assert login_res["user"].username == "admin"
+
+def test_profile_update_endpoint(db_session):
+    from server.app.api.v1.endpoints.auth import update_profile
+    from server.app.schemas.user import ProfileUpdateRequest
+    from server.app.models.user import User
+
+    admin_user = db_session.query(User).filter(User.username == "admin").first()
+    
+    updated = update_profile(
+        ProfileUpdateRequest(nama_lengkap="Nama Baru BAAK", email="new_baak@unu.ac.id"),
+        db=db_session,
+        current_user=admin_user
+    )
+    assert updated.nama_lengkap == "Nama Baru BAAK"
+    assert updated.email == "new_baak@unu.ac.id"

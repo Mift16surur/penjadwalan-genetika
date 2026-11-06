@@ -42,6 +42,15 @@ export function clearStoredAuth(): void {
   window.dispatchEvent(new Event("auth-changed"));
 }
 
+export function updateStoredUser(updatedUser: Partial<AuthUser>): void {
+  if (typeof window === "undefined") return;
+  const current = getStoredUser();
+  if (!current) return;
+  const next = { ...current, ...updatedUser };
+  localStorage.setItem(USER_KEY, JSON.stringify(next));
+  window.dispatchEvent(new Event("auth-changed"));
+}
+
 export function isAdminLoggedIn(): boolean {
   const token = getStoredToken();
   const user = getStoredUser();

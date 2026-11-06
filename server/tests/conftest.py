@@ -2,12 +2,15 @@ import os
 import sys
 # Ensure repository root is on sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+os.environ["TESTING"] = "1"
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
 import pytest
 import uuid
 from datetime import time, date, datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
 from server.app.core.database import Base
@@ -23,21 +26,25 @@ from server.app.models.enums import (
 )
 from server.app.core.security import hash_password
 
-# Use in-memory SQLite for high-speed, isolated unit tests
+# Use in-memory SQLite with StaticPool for high-speed, thread-safe unit tests
 TEST_DATABASE_URL = "sqlite:///:memory:"
 
 @pytest.fixture(scope="session")
 def engine():
-    engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
+    engine = create_engine(
+        TEST_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool
+    )
     Base.metadata.create_all(bind=engine)
     yield engine
     Base.metadata.drop_all(bind=engine)
 
 @pytest.fixture(scope="function")
 def db_session(engine):
-    connection = engine.connect()
-    transaction = connection.begin()
-    Session = sessionmaker(bind=connection)
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    Session = sessionmaker(bind=engine)
     session = Session()
 
     # Seed basic master data
@@ -46,8 +53,6 @@ def db_session(engine):
     yield session
 
     session.close()
-    transaction.rollback()
-    connection.close()
 
 @pytest.fixture(scope="function")
 def client(db_session):
@@ -58,7 +63,7 @@ def client(db_session):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as test_client:
+    with TestClient(app, base_url="http://testserver") as test_client:
         yield test_client
     app.dependency_overrides.clear()
 
