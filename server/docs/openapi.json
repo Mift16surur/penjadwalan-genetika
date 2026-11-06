@@ -1,0 +1,3251 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sistem Penjadwalan Kuliah Berbasis Algoritma Genetika",
+    "description": "\n## \ud83c\udf93 Sistem Penjadwalan Kuliah Otomatis Berbasis Algoritma Genetika\n**Universitas Nahdlatul Ulama (UNU)**\n\nSistem ini dirancang untuk memecahkan permasalahan penjadwalan perkuliahan (*University Timetabling Problem*) yang kompleks di lingkungan multi-fakultas (FST, FSEH, FAI), multi-dosen (tim-teaching ~92%), dan multi-shift (pagi & malam).\n\n---\n\n### \ud83e\uddec Fitur Utama Mesin Algoritma Genetika (GA):\n1. **Representasi Gen Diskrit**: Setiap sesi kuliah dialokasikan pada pasangan `(ruangan, hari, slot_mulai, durasi)`.\n2. **Evaluasi Hard Constraints (Wajib Nol Pelanggaran)**:\n   - Tidak ada bentrok Dosen mengajar ganda (termasuk tim pengampu N:M).\n   - Tidak ada bentrok Ruangan dipakai ganda.\n   - Tidak ada bentrok Rombel Mahasiswa pada waktu yang sama.\n   - Kapasitas ruangan mencukupi jumlah mahasiswa rombel.\n   - Mata kuliah praktikum wajib di Laboratorium Komputer/Lab terkait.\n   - Menghormati batas waktu shift dan waktu ketersediaan dosen.\n3. **Evaluasi Soft Constraints (Optimasi Kualitas)**:\n   - Sebaran hari merata (Senin s/d Sabtu).\n   - Beban dan jeda mengajar dosen.\n   - Mengurangi jeda kosong panjang (*idle gap*) antar sesi bagi mahasiswa.\n   - Pemenuhan preferensi hari/jam mengajar dosen.\n   - Minimalisasi perpindahan gedung/ruangan bagi mahasiswa.\n4. **Hybrid Local Search**: Heuristik perbaikan lokal untuk mereparasi bentrok minor secara otomatis.\n5. **Multi-Kandidat**: Menghasilkan alternatif jadwal terbaik dengan skor fitness transparan.\n\n---\n\n### \ud83d\udcca Alur Operasional Sistem:\n1. **Download Template Excel**: Ambil template melalui `/api/v1/excel/template`.\n2. **Impor / Isi Data**: Unggah data melalui `/api/v1/excel/upload` atau gunakan endpoint Master/Akademik.\n3. **Atur Bobot Aturan**: Sesuaikan bobot penalti di `/api/v1/constraints/rules`.\n4. **Jalankan Solver GA**: Trigger background job melalui `/api/v1/ga/jobs`.\n5. **Review Matriks & Revisi Manual**: Pantau progress di `/api/v1/ga/jobs/{id}`, lihat matriks `/api/v1/ga/versions/{id}/matrix`, dan lakukan penyesuaian di `/api/v1/ga/items/{id}/adjust`.\n6. **Ekspor & Publikasi**: Unduh jadwal Excel di `/api/v1/ga/versions/{id}/export-excel` dan publish jadwal.\n",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/master/periods": {
+      "get": {
+        "tags": [
+          "Master Data"
+        ],
+        "summary": "Get Periods",
+        "operationId": "get_periods_api_v1_master_periods_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SemesterPeriodeOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Periods Api V1 Master Periods Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/master/faculties": {
+      "get": {
+        "tags": [
+          "Master Data"
+        ],
+        "summary": "Get Faculties",
+        "operationId": "get_faculties_api_v1_master_faculties_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FakultasOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Faculties Api V1 Master Faculties Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/master/departments": {
+      "get": {
+        "tags": [
+          "Master Data"
+        ],
+        "summary": "Get Departments",
+        "operationId": "get_departments_api_v1_master_departments_get",
+        "parameters": [
+          {
+            "name": "fakultas_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Fakultas Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProdiOut"
+                  },
+                  "title": "Response Get Departments Api V1 Master Departments Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/master/rooms": {
+      "get": {
+        "tags": [
+          "Master Data"
+        ],
+        "summary": "Get Rooms",
+        "operationId": "get_rooms_api_v1_master_rooms_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RuanganOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Rooms Api V1 Master Rooms Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Master Data"
+        ],
+        "summary": "Create Room",
+        "operationId": "create_room_api_v1_master_rooms_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuanganCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuanganOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/master/days": {
+      "get": {
+        "tags": [
+          "Master Data"
+        ],
+        "summary": "Get Days",
+        "operationId": "get_days_api_v1_master_days_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HariOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Days Api V1 Master Days Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/master/shifts": {
+      "get": {
+        "tags": [
+          "Master Data"
+        ],
+        "summary": "Get Shifts",
+        "operationId": "get_shifts_api_v1_master_shifts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ShiftOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Shifts Api V1 Master Shifts Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/master/time-slots": {
+      "get": {
+        "tags": [
+          "Master Data"
+        ],
+        "summary": "Get Time Slots",
+        "operationId": "get_time_slots_api_v1_master_time_slots_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SlotWaktuOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Time Slots Api V1 Master Time Slots Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/academic/lecturers": {
+      "get": {
+        "tags": [
+          "Akademik & Kelas"
+        ],
+        "summary": "Get Lecturers",
+        "operationId": "get_lecturers_api_v1_academic_lecturers_get",
+        "parameters": [
+          {
+            "name": "prodi_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Prodi Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DosenOut"
+                  },
+                  "title": "Response Get Lecturers Api V1 Academic Lecturers Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Akademik & Kelas"
+        ],
+        "summary": "Create Lecturer",
+        "operationId": "create_lecturer_api_v1_academic_lecturers_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DosenCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DosenOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/academic/courses": {
+      "get": {
+        "tags": [
+          "Akademik & Kelas"
+        ],
+        "summary": "Get Courses",
+        "operationId": "get_courses_api_v1_academic_courses_get",
+        "parameters": [
+          {
+            "name": "prodi_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Prodi Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MataKuliahOut"
+                  },
+                  "title": "Response Get Courses Api V1 Academic Courses Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Akademik & Kelas"
+        ],
+        "summary": "Create Course",
+        "operationId": "create_course_api_v1_academic_courses_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MataKuliahCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MataKuliahOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/academic/classes": {
+      "get": {
+        "tags": [
+          "Akademik & Kelas"
+        ],
+        "summary": "Get Classes",
+        "operationId": "get_classes_api_v1_academic_classes_get",
+        "parameters": [
+          {
+            "name": "periode_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Periode Id"
+            }
+          },
+          {
+            "name": "prodi_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Prodi Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KelasOut"
+                  },
+                  "title": "Response Get Classes Api V1 Academic Classes Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Akademik & Kelas"
+        ],
+        "summary": "Create Class",
+        "operationId": "create_class_api_v1_academic_classes_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KelasCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KelasOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/constraints/lecturer-availabilities": {
+      "get": {
+        "tags": [
+          "Constraints & Aturan"
+        ],
+        "summary": "Get Availabilities",
+        "operationId": "get_availabilities_api_v1_constraints_lecturer_availabilities_get",
+        "parameters": [
+          {
+            "name": "dosen_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Dosen Id"
+            }
+          },
+          {
+            "name": "periode_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Periode Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KetersediaanDosenOut"
+                  },
+                  "title": "Response Get Availabilities Api V1 Constraints Lecturer Availabilities Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Constraints & Aturan"
+        ],
+        "summary": "Create Availability",
+        "operationId": "create_availability_api_v1_constraints_lecturer_availabilities_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KetersediaanDosenCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KetersediaanDosenOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/constraints/lecturer-preferences": {
+      "get": {
+        "tags": [
+          "Constraints & Aturan"
+        ],
+        "summary": "Get Preferences",
+        "operationId": "get_preferences_api_v1_constraints_lecturer_preferences_get",
+        "parameters": [
+          {
+            "name": "dosen_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Dosen Id"
+            }
+          },
+          {
+            "name": "periode_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Periode Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PreferensiDosenOut"
+                  },
+                  "title": "Response Get Preferences Api V1 Constraints Lecturer Preferences Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Constraints & Aturan"
+        ],
+        "summary": "Create Preference",
+        "operationId": "create_preference_api_v1_constraints_lecturer_preferences_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferensiDosenCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferensiDosenOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/constraints/rules": {
+      "get": {
+        "tags": [
+          "Constraints & Aturan"
+        ],
+        "summary": "Get Rules",
+        "operationId": "get_rules_api_v1_constraints_rules_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AturanJadwalOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Rules Api V1 Constraints Rules Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/constraints/rules/{rule_id}": {
+      "put": {
+        "tags": [
+          "Constraints & Aturan"
+        ],
+        "summary": "Update Rule Weight",
+        "operationId": "update_rule_weight_api_v1_constraints_rules__rule_id__put",
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          },
+          {
+            "name": "bobot",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Bobot"
+            }
+          },
+          {
+            "name": "aktif",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Aktif"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AturanJadwalOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ga/jobs": {
+      "post": {
+        "tags": [
+          "Algoritma Genetika"
+        ],
+        "summary": "Trigger Ga Job",
+        "description": "Memulai proses penjadwalan otomatis menggunakan Algoritma Genetika di latar belakang.",
+        "operationId": "trigger_ga_job_api_v1_ga_jobs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobGACreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobGAOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ga/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "Algoritma Genetika"
+        ],
+        "summary": "Get Job Status",
+        "operationId": "get_job_status_api_v1_ga_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobGAOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ga/versions": {
+      "get": {
+        "tags": [
+          "Algoritma Genetika"
+        ],
+        "summary": "List Schedule Versions",
+        "description": "Daftar versi/kandidat jadwal yang dihasilkan GA.",
+        "operationId": "list_schedule_versions_api_v1_ga_versions_get",
+        "parameters": [
+          {
+            "name": "periode_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Periode Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VersiJadwalOut"
+                  },
+                  "title": "Response List Schedule Versions Api V1 Ga Versions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ga/versions/{version_id}": {
+      "get": {
+        "tags": [
+          "Algoritma Genetika"
+        ],
+        "summary": "Get Schedule Version Detail",
+        "description": "Mendapatkan detail penempatan jadwal dan daftar pelanggaran dari versi tertentu.",
+        "operationId": "get_schedule_version_detail_api_v1_ga_versions__version_id__get",
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersiJadwalDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ga/items/{jadwal_id}/adjust": {
+      "put": {
+        "tags": [
+          "Algoritma Genetika"
+        ],
+        "summary": "Adjust Schedule Item",
+        "description": "Penyesuaian manual (drag-and-drop) posisi jadwal oleh admin.\nMengecek potensi bentrok sebelum menyimpan.",
+        "operationId": "adjust_schedule_item_api_v1_ga_items__jadwal_id__adjust_put",
+        "parameters": [
+          {
+            "name": "jadwal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Jadwal Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleAdjustRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JadwalItemOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ga/versions/{version_id}/approve": {
+      "post": {
+        "tags": [
+          "Algoritma Genetika"
+        ],
+        "summary": "Approve Schedule Version",
+        "operationId": "approve_schedule_version_api_v1_ga_versions__version_id__approve_post",
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersiJadwalOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ga/versions/{version_id}/publish": {
+      "post": {
+        "tags": [
+          "Algoritma Genetika"
+        ],
+        "summary": "Publish Schedule Version",
+        "operationId": "publish_schedule_version_api_v1_ga_versions__version_id__publish_post",
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersiJadwalOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ga/versions/{version_id}/export-excel": {
+      "get": {
+        "tags": [
+          "Algoritma Genetika"
+        ],
+        "summary": "Export Version Excel",
+        "description": "Mengunduh hasil jadwal perkuliahan versi terpilih dalam format file Excel (.xlsx).",
+        "operationId": "export_version_excel_api_v1_ga_versions__version_id__export_excel_get",
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ga/versions/{version_id}/matrix": {
+      "get": {
+        "tags": [
+          "Algoritma Genetika"
+        ],
+        "summary": "Get Schedule Matrix",
+        "description": "Format matriks visualisasi jadwal yang langsung siap dirender oleh Frontend (FE).\nMendukung 3 perspektif:\n1. view_by=room (Grid Hari x Jam per Ruangan)\n2. view_by=lecturer (Jadwal per Dosen)\n3. view_by=class (Jadwal per Rombel Mahasiswa)",
+        "operationId": "get_schedule_matrix_api_v1_ga_versions__version_id__matrix_get",
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Version Id"
+            }
+          },
+          {
+            "name": "view_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "room",
+              "title": "View By"
+            }
+          },
+          {
+            "name": "filter_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/excel/template": {
+      "get": {
+        "tags": [
+          "Import & Export Excel"
+        ],
+        "summary": "Download Excel Template",
+        "description": "Mengunduh Template Excel (.xlsx) dengan 5 sheet terstandarisasi untuk persiapan data jadwal:\n1. Petunjuk Pengisian\n2. Fakultas & Prodi\n3. Ruangan (Kapasitas & Jenis)\n4. Dosen\n5. Mata Kuliah & Kelas Rombel (termasuk kolom Tim Teaching 2 Dosen)",
+        "operationId": "download_excel_template_api_v1_excel_template_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/excel/upload": {
+      "post": {
+        "tags": [
+          "Import & Export Excel"
+        ],
+        "summary": "Upload Excel Data",
+        "description": "Mengunggah file Excel data perkuliahan untuk diimpor ke database.\nFormat file harus mengikuti template yang diunduh dari `/api/v1/excel/template`.",
+        "operationId": "upload_excel_data_api_v1_excel_upload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_excel_data_api_v1_excel_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/seed/master": {
+      "post": {
+        "tags": [
+          "Seeding Data"
+        ],
+        "summary": "Seed Master",
+        "description": "Seed data master dasar: Hari, Shift, Slot 50 menit, Aturan GA, Fakultas, Ruang.",
+        "operationId": "seed_master_api_v1_seed_master_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/seed/academic-demo": {
+      "post": {
+        "tags": [
+          "Seeding Data"
+        ],
+        "summary": "Seed Academic",
+        "description": "Seed data simulasi akademik: Dosen, Matkul, Rombel, Tim Pengampu.",
+        "operationId": "seed_academic_api_v1_seed_academic_demo_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "tags": [
+          "Info"
+        ],
+        "summary": "Root",
+        "description": "Informasi dasar status API dan tautan cepat ke dokumentasi Swagger.",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Info"
+        ],
+        "summary": "Healthcheck",
+        "description": "Pemeriksaan status kesehatan server (healthcheck probe).",
+        "operationId": "healthcheck_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AturanJadwalOut": {
+        "properties": {
+          "kode": {
+            "type": "string",
+            "title": "Kode"
+          },
+          "nama": {
+            "type": "string",
+            "title": "Nama"
+          },
+          "tipe": {
+            "$ref": "#/components/schemas/TipeAturan"
+          },
+          "bobot": {
+            "type": "number",
+            "title": "Bobot"
+          },
+          "aktif": {
+            "type": "boolean",
+            "title": "Aktif",
+            "default": true
+          },
+          "konfigurasi": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Konfigurasi",
+            "default": {}
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kode",
+          "nama",
+          "tipe",
+          "bobot",
+          "id"
+        ],
+        "title": "AturanJadwalOut"
+      },
+      "Body_upload_excel_data_api_v1_excel_upload_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "semester_periode_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Semester Periode Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "semester_periode_id"
+        ],
+        "title": "Body_upload_excel_data_api_v1_excel_upload_post"
+      },
+      "DosenCreate": {
+        "properties": {
+          "nidn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nidn"
+          },
+          "nip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nip"
+          },
+          "nama": {
+            "type": "string",
+            "title": "Nama"
+          },
+          "gelar_depan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gelar Depan"
+          },
+          "gelar_belakang": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gelar Belakang"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "prodi_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prodi Id"
+          },
+          "aktif": {
+            "type": "boolean",
+            "title": "Aktif",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "nama"
+        ],
+        "title": "DosenCreate"
+      },
+      "DosenOut": {
+        "properties": {
+          "nidn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nidn"
+          },
+          "nip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nip"
+          },
+          "nama": {
+            "type": "string",
+            "title": "Nama"
+          },
+          "gelar_depan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gelar Depan"
+          },
+          "gelar_belakang": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gelar Belakang"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "prodi_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prodi Id"
+          },
+          "aktif": {
+            "type": "boolean",
+            "title": "Aktif",
+            "default": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nama_lengkap": {
+            "type": "string",
+            "title": "Nama Lengkap"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nama",
+          "id",
+          "nama_lengkap"
+        ],
+        "title": "DosenOut"
+      },
+      "FakultasOut": {
+        "properties": {
+          "kode": {
+            "type": "string",
+            "title": "Kode"
+          },
+          "nama": {
+            "type": "string",
+            "title": "Nama"
+          },
+          "aktif": {
+            "type": "boolean",
+            "title": "Aktif",
+            "default": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kode",
+          "nama",
+          "id"
+        ],
+        "title": "FakultasOut"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HariOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "kode": {
+            "type": "string",
+            "title": "Kode"
+          },
+          "nama": {
+            "type": "string",
+            "title": "Nama"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kode",
+          "nama"
+        ],
+        "title": "HariOut"
+      },
+      "JadwalItemOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "versi_jadwal_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Versi Jadwal Id"
+          },
+          "kelas_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Kelas Id"
+          },
+          "ruangan_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Ruangan Id"
+          },
+          "hari_id": {
+            "type": "integer",
+            "title": "Hari Id"
+          },
+          "slot_mulai_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Slot Mulai Id"
+          },
+          "durasi_slot": {
+            "type": "integer",
+            "title": "Durasi Slot"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusJadwal"
+          },
+          "manual_edit": {
+            "type": "boolean",
+            "title": "Manual Edit"
+          },
+          "catatan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catatan"
+          },
+          "kelas": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KelasOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ruangan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuanganOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hari": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HariOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slot_mulai": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SlotWaktuOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "versi_jadwal_id",
+          "kelas_id",
+          "ruangan_id",
+          "hari_id",
+          "slot_mulai_id",
+          "durasi_slot",
+          "status",
+          "manual_edit"
+        ],
+        "title": "JadwalItemOut"
+      },
+      "JenisMataKuliah": {
+        "type": "string",
+        "enum": [
+          "TEORI",
+          "PRAKTIK",
+          "TEORI_PRAKTIK"
+        ],
+        "title": "JenisMataKuliah"
+      },
+      "JenisRuangan": {
+        "type": "string",
+        "enum": [
+          "KELAS",
+          "LABORATORIUM",
+          "GAZEBO",
+          "AULA",
+          "LAINNYA"
+        ],
+        "title": "JenisRuangan"
+      },
+      "JobGACreate": {
+        "properties": {
+          "semester_periode_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Semester Periode Id"
+          },
+          "prodi_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prodi Id"
+          },
+          "populasi": {
+            "type": "integer",
+            "title": "Populasi",
+            "default": 50
+          },
+          "generasi": {
+            "type": "integer",
+            "title": "Generasi",
+            "default": 100
+          },
+          "mutation_rate": {
+            "type": "number",
+            "title": "Mutation Rate",
+            "default": 0.08
+          },
+          "crossover_rate": {
+            "type": "number",
+            "title": "Crossover Rate",
+            "default": 0.85
+          }
+        },
+        "type": "object",
+        "required": [
+          "semester_periode_id"
+        ],
+        "title": "JobGACreate"
+      },
+      "JobGAOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "semester_periode_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Semester Periode Id"
+          },
+          "prodi_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prodi Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusJobGA"
+          },
+          "populasi": {
+            "type": "integer",
+            "title": "Populasi"
+          },
+          "generasi": {
+            "type": "integer",
+            "title": "Generasi"
+          },
+          "mutation_rate": {
+            "type": "number",
+            "title": "Mutation Rate"
+          },
+          "crossover_rate": {
+            "type": "number",
+            "title": "Crossover Rate"
+          },
+          "fitness_terbaik": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fitness Terbaik"
+          },
+          "progress": {
+            "type": "integer",
+            "title": "Progress"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "semester_periode_id",
+          "status",
+          "populasi",
+          "generasi",
+          "mutation_rate",
+          "crossover_rate",
+          "progress"
+        ],
+        "title": "JobGAOut"
+      },
+      "KelasCreate": {
+        "properties": {
+          "kode_kelas": {
+            "type": "string",
+            "title": "Kode Kelas"
+          },
+          "nama_kelas": {
+            "type": "string",
+            "title": "Nama Kelas"
+          },
+          "mata_kuliah_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Mata Kuliah Id"
+          },
+          "prodi_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Prodi Id"
+          },
+          "semester_periode_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Semester Periode Id"
+          },
+          "semester_ke": {
+            "type": "integer",
+            "title": "Semester Ke",
+            "default": 1
+          },
+          "jumlah_mahasiswa": {
+            "type": "integer",
+            "title": "Jumlah Mahasiswa",
+            "default": 30
+          },
+          "sks": {
+            "type": "integer",
+            "title": "Sks",
+            "default": 2
+          },
+          "jenis": {
+            "$ref": "#/components/schemas/JenisMataKuliah",
+            "default": "TEORI"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusKelas",
+            "default": "ACTIVE"
+          },
+          "dosen_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Dosen Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "kode_kelas",
+          "nama_kelas",
+          "mata_kuliah_id",
+          "prodi_id",
+          "semester_periode_id"
+        ],
+        "title": "KelasCreate"
+      },
+      "KelasOut": {
+        "properties": {
+          "kode_kelas": {
+            "type": "string",
+            "title": "Kode Kelas"
+          },
+          "nama_kelas": {
+            "type": "string",
+            "title": "Nama Kelas"
+          },
+          "mata_kuliah_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Mata Kuliah Id"
+          },
+          "prodi_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Prodi Id"
+          },
+          "semester_periode_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Semester Periode Id"
+          },
+          "semester_ke": {
+            "type": "integer",
+            "title": "Semester Ke",
+            "default": 1
+          },
+          "jumlah_mahasiswa": {
+            "type": "integer",
+            "title": "Jumlah Mahasiswa",
+            "default": 30
+          },
+          "sks": {
+            "type": "integer",
+            "title": "Sks",
+            "default": 2
+          },
+          "jenis": {
+            "$ref": "#/components/schemas/JenisMataKuliah",
+            "default": "TEORI"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusKelas",
+            "default": "ACTIVE"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "pengampu_list": {
+            "items": {
+              "$ref": "#/components/schemas/PengampuKelasOut"
+            },
+            "type": "array",
+            "title": "Pengampu List",
+            "default": []
+          },
+          "mata_kuliah": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MataKuliahOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "kode_kelas",
+          "nama_kelas",
+          "mata_kuliah_id",
+          "prodi_id",
+          "semester_periode_id",
+          "id"
+        ],
+        "title": "KelasOut"
+      },
+      "KetersediaanDosenCreate": {
+        "properties": {
+          "dosen_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Dosen Id"
+          },
+          "semester_periode_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Semester Periode Id"
+          },
+          "hari_id": {
+            "type": "integer",
+            "title": "Hari Id"
+          },
+          "slot_mulai_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Slot Mulai Id"
+          },
+          "slot_selesai_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Slot Selesai Id"
+          },
+          "tersedia": {
+            "type": "boolean",
+            "title": "Tersedia",
+            "default": true
+          },
+          "keterangan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keterangan"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dosen_id",
+          "semester_periode_id",
+          "hari_id",
+          "slot_mulai_id",
+          "slot_selesai_id"
+        ],
+        "title": "KetersediaanDosenCreate"
+      },
+      "KetersediaanDosenOut": {
+        "properties": {
+          "dosen_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Dosen Id"
+          },
+          "semester_periode_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Semester Periode Id"
+          },
+          "hari_id": {
+            "type": "integer",
+            "title": "Hari Id"
+          },
+          "slot_mulai_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Slot Mulai Id"
+          },
+          "slot_selesai_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Slot Selesai Id"
+          },
+          "tersedia": {
+            "type": "boolean",
+            "title": "Tersedia",
+            "default": true
+          },
+          "keterangan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keterangan"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dosen_id",
+          "semester_periode_id",
+          "hari_id",
+          "slot_mulai_id",
+          "slot_selesai_id",
+          "id"
+        ],
+        "title": "KetersediaanDosenOut"
+      },
+      "MataKuliahCreate": {
+        "properties": {
+          "kode": {
+            "type": "string",
+            "title": "Kode"
+          },
+          "nama": {
+            "type": "string",
+            "title": "Nama"
+          },
+          "sks": {
+            "type": "integer",
+            "title": "Sks",
+            "default": 2
+          },
+          "teori_sks": {
+            "type": "integer",
+            "title": "Teori Sks",
+            "default": 2
+          },
+          "praktik_sks": {
+            "type": "integer",
+            "title": "Praktik Sks",
+            "default": 0
+          },
+          "jenis": {
+            "$ref": "#/components/schemas/JenisMataKuliah",
+            "default": "TEORI"
+          },
+          "prodi_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Prodi Id"
+          },
+          "semester_rekomendasi": {
+            "type": "integer",
+            "title": "Semester Rekomendasi",
+            "default": 1
+          },
+          "aktif": {
+            "type": "boolean",
+            "title": "Aktif",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "kode",
+          "nama",
+          "prodi_id"
+        ],
+        "title": "MataKuliahCreate"
+      },
+      "MataKuliahOut": {
+        "properties": {
+          "kode": {
+            "type": "string",
+            "title": "Kode"
+          },
+          "nama": {
+            "type": "string",
+            "title": "Nama"
+          },
+          "sks": {
+            "type": "integer",
+            "title": "Sks",
+            "default": 2
+          },
+          "teori_sks": {
+            "type": "integer",
+            "title": "Teori Sks",
+            "default": 2
+          },
+          "praktik_sks": {
+            "type": "integer",
+            "title": "Praktik Sks",
+            "default": 0
+          },
+          "jenis": {
+            "$ref": "#/components/schemas/JenisMataKuliah",
+            "default": "TEORI"
+          },
+          "prodi_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Prodi Id"
+          },
+          "semester_rekomendasi": {
+            "type": "integer",
+            "title": "Semester Rekomendasi",
+            "default": 1
+          },
+          "aktif": {
+            "type": "boolean",
+            "title": "Aktif",
+            "default": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kode",
+          "nama",
+          "prodi_id",
+          "id"
+        ],
+        "title": "MataKuliahOut"
+      },
+      "PelanggaranJadwalOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "aturan_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Aturan Id"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/SeverityPelanggaran"
+          },
+          "penalti": {
+            "type": "number",
+            "title": "Penalti"
+          },
+          "pesan": {
+            "type": "string",
+            "title": "Pesan"
+          },
+          "detail": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Detail",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "aturan_id",
+          "severity",
+          "penalti",
+          "pesan"
+        ],
+        "title": "PelanggaranJadwalOut"
+      },
+      "PengampuKelasOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "dosen_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Dosen Id"
+          },
+          "peran": {
+            "$ref": "#/components/schemas/PeranDosen"
+          },
+          "prioritas": {
+            "type": "integer",
+            "title": "Prioritas"
+          },
+          "dosen": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DosenOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "dosen_id",
+          "peran",
+          "prioritas"
+        ],
+        "title": "PengampuKelasOut"
+      },
+      "PeranDosen": {
+        "type": "string",
+        "enum": [
+          "UTAMA",
+          "ANGGOTA"
+        ],
+        "title": "PeranDosen"
+      },
+      "PreferensiDosenCreate": {
+        "properties": {
+          "dosen_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Dosen Id"
+          },
+          "semester_periode_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Semester Periode Id"
+          },
+          "hari_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hari Id"
+          },
+          "slot_mulai_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Mulai Id"
+          },
+          "slot_selesai_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Selesai Id"
+          },
+          "tipe": {
+            "$ref": "#/components/schemas/TipePreferensi",
+            "default": "PREFER"
+          },
+          "bobot": {
+            "type": "integer",
+            "title": "Bobot",
+            "default": 5
+          },
+          "keterangan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keterangan"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dosen_id",
+          "semester_periode_id"
+        ],
+        "title": "PreferensiDosenCreate"
+      },
+      "PreferensiDosenOut": {
+        "properties": {
+          "dosen_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Dosen Id"
+          },
+          "semester_periode_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Semester Periode Id"
+          },
+          "hari_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hari Id"
+          },
+          "slot_mulai_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Mulai Id"
+          },
+          "slot_selesai_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Selesai Id"
+          },
+          "tipe": {
+            "$ref": "#/components/schemas/TipePreferensi",
+            "default": "PREFER"
+          },
+          "bobot": {
+            "type": "integer",
+            "title": "Bobot",
+            "default": 5
+          },
+          "keterangan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keterangan"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dosen_id",
+          "semester_periode_id",
+          "id"
+        ],
+        "title": "PreferensiDosenOut"
+      },
+      "ProdiOut": {
+        "properties": {
+          "fakultas_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Fakultas Id"
+          },
+          "kode": {
+            "type": "string",
+            "title": "Kode"
+          },
+          "nama": {
+            "type": "string",
+            "title": "Nama"
+          },
+          "jenjang": {
+            "type": "string",
+            "title": "Jenjang",
+            "default": "S1"
+          },
+          "aktif": {
+            "type": "boolean",
+            "title": "Aktif",
+            "default": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fakultas_id",
+          "kode",
+          "nama",
+          "id"
+        ],
+        "title": "ProdiOut"
+      },
+      "RuanganCreate": {
+        "properties": {
+          "kode": {
+            "type": "string",
+            "title": "Kode"
+          },
+          "nama": {
+            "type": "string",
+            "title": "Nama"
+          },
+          "gedung": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gedung"
+          },
+          "lantai": {
+            "type": "integer",
+            "title": "Lantai",
+            "default": 1
+          },
+          "kapasitas": {
+            "type": "integer",
+            "title": "Kapasitas",
+            "default": 40
+          },
+          "jenis": {
+            "$ref": "#/components/schemas/JenisRuangan",
+            "default": "KELAS"
+          },
+          "fasilitas": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Fasilitas",
+            "default": {}
+          },
+          "fakultas_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fakultas Id"
+          },
+          "dapat_digunakan_bersama": {
+            "type": "boolean",
+            "title": "Dapat Digunakan Bersama",
+            "default": true
+          },
+          "aktif": {
+            "type": "boolean",
+            "title": "Aktif",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "kode",
+          "nama"
+        ],
+        "title": "RuanganCreate"
+      },
+      "RuanganOut": {
+        "properties": {
+          "kode": {
+            "type": "string",
+            "title": "Kode"
+          },
+          "nama": {
+            "type": "string",
+            "title": "Nama"
+          },
+          "gedung": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gedung"
+          },
+          "lantai": {
+            "type": "integer",
+            "title": "Lantai",
+            "default": 1
+          },
+          "kapasitas": {
+            "type": "integer",
+            "title": "Kapasitas",
+            "default": 40
+          },
+          "jenis": {
+            "$ref": "#/components/schemas/JenisRuangan",
+            "default": "KELAS"
+          },
+          "fasilitas": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Fasilitas",
+            "default": {}
+          },
+          "fakultas_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fakultas Id"
+          },
+          "dapat_digunakan_bersama": {
+            "type": "boolean",
+            "title": "Dapat Digunakan Bersama",
+            "default": true
+          },
+          "aktif": {
+            "type": "boolean",
+            "title": "Aktif",
+            "default": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kode",
+          "nama",
+          "id"
+        ],
+        "title": "RuanganOut"
+      },
+      "ScheduleAdjustRequest": {
+        "properties": {
+          "ruangan_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Ruangan Id"
+          },
+          "hari_id": {
+            "type": "integer",
+            "title": "Hari Id"
+          },
+          "slot_mulai_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Slot Mulai Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ruangan_id",
+          "hari_id",
+          "slot_mulai_id"
+        ],
+        "title": "ScheduleAdjustRequest"
+      },
+      "SemesterPeriodeOut": {
+        "properties": {
+          "kode": {
+            "type": "string",
+            "title": "Kode"
+          },
+          "tahun_ajaran": {
+            "type": "string",
+            "title": "Tahun Ajaran"
+          },
+          "semester": {
+            "$ref": "#/components/schemas/SemesterTipe"
+          },
+          "tanggal_mulai": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tanggal Mulai"
+          },
+          "tanggal_selesai": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tanggal Selesai"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusPeriode",
+            "default": "DRAFT"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kode",
+          "tahun_ajaran",
+          "semester",
+          "id"
+        ],
+        "title": "SemesterPeriodeOut"
+      },
+      "SemesterTipe": {
+        "type": "string",
+        "enum": [
+          "GASAL",
+          "GENAP"
+        ],
+        "title": "SemesterTipe"
+      },
+      "SeverityPelanggaran": {
+        "type": "string",
+        "enum": [
+          "HARD",
+          "SOFT"
+        ],
+        "title": "SeverityPelanggaran"
+      },
+      "ShiftOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "kode": {
+            "type": "string",
+            "title": "Kode"
+          },
+          "nama": {
+            "type": "string",
+            "title": "Nama"
+          },
+          "jam_mulai": {
+            "type": "string",
+            "format": "time",
+            "title": "Jam Mulai"
+          },
+          "jam_selesai": {
+            "type": "string",
+            "format": "time",
+            "title": "Jam Selesai"
+          },
+          "aktif": {
+            "type": "boolean",
+            "title": "Aktif"
+          },
+          "slot_waktu_list": {
+            "items": {
+              "$ref": "#/components/schemas/SlotWaktuOut"
+            },
+            "type": "array",
+            "title": "Slot Waktu List",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kode",
+          "nama",
+          "jam_mulai",
+          "jam_selesai",
+          "aktif"
+        ],
+        "title": "ShiftOut"
+      },
+      "SlotWaktuOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "shift_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Shift Id"
+          },
+          "nomor": {
+            "type": "integer",
+            "title": "Nomor"
+          },
+          "jam_mulai": {
+            "type": "string",
+            "format": "time",
+            "title": "Jam Mulai"
+          },
+          "jam_selesai": {
+            "type": "string",
+            "format": "time",
+            "title": "Jam Selesai"
+          },
+          "durasi_menit": {
+            "type": "integer",
+            "title": "Durasi Menit"
+          },
+          "aktif": {
+            "type": "boolean",
+            "title": "Aktif"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "shift_id",
+          "nomor",
+          "jam_mulai",
+          "jam_selesai",
+          "durasi_menit",
+          "aktif"
+        ],
+        "title": "SlotWaktuOut"
+      },
+      "StatusJadwal": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "CANCELLED"
+        ],
+        "title": "StatusJadwal"
+      },
+      "StatusJobGA": {
+        "type": "string",
+        "enum": [
+          "QUEUED",
+          "RUNNING",
+          "COMPLETED",
+          "FAILED",
+          "CANCELLED"
+        ],
+        "title": "StatusJobGA"
+      },
+      "StatusKelas": {
+        "type": "string",
+        "enum": [
+          "DRAFT",
+          "ACTIVE",
+          "CANCELLED"
+        ],
+        "title": "StatusKelas"
+      },
+      "StatusPeriode": {
+        "type": "string",
+        "enum": [
+          "DRAFT",
+          "ACTIVE",
+          "CLOSED"
+        ],
+        "title": "StatusPeriode"
+      },
+      "StatusVersiJadwal": {
+        "type": "string",
+        "enum": [
+          "DRAFT",
+          "GENERATED",
+          "REVIEW",
+          "APPROVED",
+          "PUBLISHED",
+          "ARCHIVED"
+        ],
+        "title": "StatusVersiJadwal"
+      },
+      "TipeAturan": {
+        "type": "string",
+        "enum": [
+          "HARD",
+          "SOFT"
+        ],
+        "title": "TipeAturan"
+      },
+      "TipePreferensi": {
+        "type": "string",
+        "enum": [
+          "PREFER",
+          "HINDARI"
+        ],
+        "title": "TipePreferensi"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VersiJadwalDetailOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "job_ga_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Ga Id"
+          },
+          "semester_periode_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Semester Periode Id"
+          },
+          "nomor_versi": {
+            "type": "integer",
+            "title": "Nomor Versi"
+          },
+          "nama": {
+            "type": "string",
+            "title": "Nama"
+          },
+          "fitness_score": {
+            "type": "number",
+            "title": "Fitness Score"
+          },
+          "jumlah_pelanggaran": {
+            "type": "integer",
+            "title": "Jumlah Pelanggaran"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusVersiJadwal"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "jadwal_list": {
+            "items": {
+              "$ref": "#/components/schemas/JadwalItemOut"
+            },
+            "type": "array",
+            "title": "Jadwal List",
+            "default": []
+          },
+          "pelanggaran_list": {
+            "items": {
+              "$ref": "#/components/schemas/PelanggaranJadwalOut"
+            },
+            "type": "array",
+            "title": "Pelanggaran List",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "semester_periode_id",
+          "nomor_versi",
+          "nama",
+          "fitness_score",
+          "jumlah_pelanggaran",
+          "status"
+        ],
+        "title": "VersiJadwalDetailOut"
+      },
+      "VersiJadwalOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "job_ga_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Ga Id"
+          },
+          "semester_periode_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Semester Periode Id"
+          },
+          "nomor_versi": {
+            "type": "integer",
+            "title": "Nomor Versi"
+          },
+          "nama": {
+            "type": "string",
+            "title": "Nama"
+          },
+          "fitness_score": {
+            "type": "number",
+            "title": "Fitness Score"
+          },
+          "jumlah_pelanggaran": {
+            "type": "integer",
+            "title": "Jumlah Pelanggaran"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusVersiJadwal"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "semester_periode_id",
+          "nomor_versi",
+          "nama",
+          "fitness_score",
+          "jumlah_pelanggaran",
+          "status"
+        ],
+        "title": "VersiJadwalOut"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Import & Export Excel",
+      "description": "Unduh format template Excel resmi, unggah/impor data akademik, serta ekspor hasil jadwal perkuliahan ke format .xlsx multi-sheet."
+    },
+    {
+      "name": "Algoritma Genetika",
+      "description": "Eksekusi background job optimasi GA, pemantauan progress real-time, perbandingan kandidat versi, matriks visualisasi grid, dan penyesuaian manual (drag-and-drop) dengan deteksi bentrok seketika."
+    },
+    {
+      "name": "Akademik & Kelas",
+      "description": "Manajemen data Dosen, Mata Kuliah (Teori/Praktik), Kelas Rombel, dan Tim Pengampu (Banyak-ke-Banyak / Team Teaching)."
+    },
+    {
+      "name": "Constraints & Aturan",
+      "description": "Konfigurasi ketersediaan waktu dosen (hard constraint), preferensi dosen (soft constraint), serta penyesuaian bobot penalti aturan jadwal."
+    },
+    {
+      "name": "Master Data",
+      "description": "Manajemen data master: Fakultas, Program Studi, Ruangan (Kelas/Lab/Gazebo/Aula), Shift (Pagi/Malam), Hari (Senin-Sabtu), dan Slot Waktu 50 menit."
+    },
+    {
+      "name": "Seeding Data",
+      "description": "Utilitas untuk populate data awal (Master & Demo Akademik) untuk keperluan simulasi dan pengujian sistem."
+    }
+  ]
+}
